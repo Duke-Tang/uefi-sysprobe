@@ -12,6 +12,7 @@
 
 extern VOID GetCpuVendor(CHAR8 *Vendor);
 extern VOID GetCpuBrand(CHAR8 *Brand);
+extern UINT64 EFIAPI ReadTsc (VOID);
 
 STATIC VOID Header(CONST CHAR16 *T) { Print(L"\n=== %s ===\n", T); }
 
@@ -29,6 +30,11 @@ STATIC VOID PrintCpu(VOID) {
   Header(L"CPU (via CPUID)");
   Print(L"  Vendor: %a\n", Vendor);
   Print(L"  Brand : %a\n", Brand);
+
+  UINT64 Tsc1 = ReadTsc();
+  gBS->Stall(1000);  // sleep 1ms
+  UINT64 Tsc2 = ReadTsc();
+  Print(L"  TSC   : %lu cycles (delta in 1ms = %lu)\n", Tsc2, Tsc2 - Tsc1);
 }
 
 STATIC VOID PrintSmbios(VOID) {

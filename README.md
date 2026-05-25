@@ -1,79 +1,77 @@
 # uefi-sysprobe
 
-![build](https://github.com/Duke-Tang/uefi-sysprobe/actions/workflows/build.yml/badge.svg)
+[![build](https://github.com/Duke-Tang/uefi-sysprobe/actions/workflows/build.yml/badge.svg)](https://github.com/Duke-Tang/uefi-sysprobe/actions/workflows/build.yml)
+[![EDK2](https://img.shields.io/badge/EDK2-tianocore-blue)](https://github.com/tianocore/edk2)
+[![UEFI](https://img.shields.io/badge/UEFI-2.10-orange)](https://uefi.org/specifications)
+[![SMBIOS](https://img.shields.io/badge/SMBIOS-3.7.0-green)](https://www.dmtf.org/standards/smbios)
+[![arch](https://img.shields.io/badge/arch-x86__64-lightgrey)]()
+[![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-Minimal UEFI Shell application that probes system info via three different mechanisms — built with EDK2 and tested under QEMU + OVMF.
+> Minimal UEFI Shell application that exercises three different firmware-level mechanisms — CPUID, SMBIOS table walking, and EFI Variable services. Built with EDK2, verified in CI, tested under QEMU + OVMF.
+
+![demo](docs/screenshot.png)
 
 ## What it does
 
-| Section | Mechanism | What it shows |
-|---|---|---|
-| CPU | `cpuid` instruction (inline x86 asm) | Vendor string, processor brand string |
-| SMBIOS | EFI Configuration Table → SMBIOS entry point → walk structures | BIOS vendor/version (type 0), System manuf/product (type 1) |
-| EFI Variable | `gRT->GetVariable()` | `BootCurrent` from global variable namespace |
+| Section | Mechanism | Spec | What it prints |
+|---|---|---|---|
+| **CPU** | `cpuid` instruction via **inline x86 assembly** | Intel SDM Vol. 2A | Vendor string (leaf 0), Brand string (leaf 0x80000002–4) |
+| **SMBIOS** | `EfiGetSystemConfigurationTable` → entry point → walk structures | DMTF SMBIOS 3.7.0 | Type 0 (BIOS info), Type 1 (System info) |
+| **EFI Variable** | `gRT->GetVariable()` | UEFI 2.10 §8.2 | `BootCurrent` from global variable namespace |
 
-## Demo
-
-![screenshot](docs/screenshot.png)
-
-## Project layout
-## EDK2 libraries used
-
-- `UefiApplicationEntryPoint` — module entry boilerplate
-- `UefiBootServicesTableLib` / `UefiRuntimeServicesTableLib` — `gBS` / `gRT` access
-- `UefiLib` — `EfiGetSystemConfigurationTable`, `Print`
-- `BaseLib` / `BaseMemoryLib` — `CopyMem`, etc.
-
+## Architecture
+┌─────────────────────────────────────────────────────────────┐
+│                      SysProbe.efi                            │
+│                  (UEFI_APPLICATION)                          │
+├─────────────────────────────────────────────────────────────┤
+│  SysProbe.c          ── entry, SMBIOS walker, variable read │
+│  Cpuid.c             ── inline asm wrapper for CPUID        │
+│  SysProbe.inf        ── EDK2 module manifest                │
+└─────────────────────────────────────────────────────────────┘
+│
+├── linked against MdePkg / MdeModulePkg
+└── loaded by UEFI Shell on FS0:
 ## Build
 
-```bash
-# Prereqs (Ubuntu 22.04 / WSL2)
-sudo apt install -y build-essential uuid-dev iasl nasm acpica-tools \
-                    git python3-distutils qemu-system-x86 ovmf
+### Prerequisites (Ubuntu 22.04 / WSL2)
 
-# EDK2 setup (once)
+```bash
+sudo apt install -y build-essential uuid-dev iasl nasm acpica-tools 
+git python3-distutils qemu-system-x86 ovmf
+### One-time EDK2 setup
+
+```bash
 git clone --recurse-submodules https://github.com/tianocore/edk2.git ~/edk2
 cd ~/edk2 && make -C BaseTools
-
-# Link this module into the EDK2 tree
-ln -s ~/uefi-sysprobe/src ~/edk2/MdeModulePkg/Application/SysProbe
-# Add to [Components] of MdeModulePkg/MdeModulePkg.dsc:
-#   MdeModulePkg/Application/SysProbe/SysProbe.inf
-
-# Build
-cd ~/edk2
-source edksetup.sh
-build -a X64 -t GCC -p MdeModulePkg/MdeModulePkg.dsc \
-      -m MdeModulePkg/Application/SysProbe/SysProbe.inf
-# → Build/MdeModule/DEBUG_GCC/X64/SysProbe.efi
-```
-
-## Run under QEMU + OVMF
+### Wire this module in & build
 
 ```bash
-mkdir -p ~/esp
-cp ~/edk2/Build/MdeModule/DEBUG_GCC/X64/SysProbe.efi ~/esp/
-qemu-system-x86_64 -bios /usr/share/ovmf/OVMF.fd \
-                   -drive format=raw,file=fat:rw:$HOME/esp \
-                   -net none -nographic
-# In UEFI Shell:
-#   Shell> fs0:
-#   FS0:\> SysProbe.efi
-```
+Shell> fs0:
+FS0:> SysProbe.efi
+## CI
+
+Every push to `main` triggers `.github/workflows/build.yml`, which on a clean
+`ubuntu-22.04` runner: installs build deps → clones EDK2 → builds BaseTools →
+links this module into `MdeModulePkg` → builds `SysProbe.efi` → uploads it as
+a downloadable artifact. The **build badge** above reflects the latest run.
 
 ## Why this exists
 
-Practice project for firmware engineer interviews — exercises the
-UEFI module structure, x86 instruction-level access, and the data
-tables (SMBIOS / EFI variables) that real BIOS code consumes daily.
+Practice project targeting firmware-engineer interviews (BIOS / BMC / NB / AIO).
+Touches the four pillars actually used in BIOS porting work:
+
+- EDK2 module structure (`.inf` + `LibraryClasses`)
+- UEFI services (Boot / Runtime / Configuration Tables)
+- Industry-standard tables (SMBIOS, EFI Variables)
+- x86 instruction-level access (CPUID inline asm, RDTSC in NASM — see `src/asm/`)
 
 ## References
 
-- UEFI Specification 2.10 — sections on Boot/Runtime Services, EFI Variables
-- SMBIOS Reference Specification 3.7.0 (DMTF DSP0134)
-- Intel® 64 and IA-32 Architectures Software Developer's Manual, Vol. 2A — CPUID
-- [EDK2 wiki](https://github.com/tianocore/tianocore.github.io/wiki) — module / DSC / INF structure
+- [UEFI Specification 2.10](https://uefi.org/specs/UEFI/2.10/) — §3 Boot Manager, §8 Services - Runtime, §10 Protocols - Device Path
+- [SMBIOS Reference Specification 3.7.0 (DSP0134)](https://www.dmtf.org/standards/smbios)
+- [Intel® 64 and IA-32 SDM Vol. 2A](https://www.intel.com/sdm) — `CPUID`, `RDTSC`
+- [TianoCore EDK2 Wiki](https://github.com/tianocore/tianocore.github.io/wiki/EDK-II)
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE)

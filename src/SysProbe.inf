@@ -1,14 +1,17 @@
 [Defines]
   INF_VERSION    = 0x00010005
   BASE_NAME      = SysProbe
-  FILE_GUID      = 18bb6998-9bfd-4924-8c7f-098ad40a41b0
+  FILE_GUID      = ca21e202-9deb-4fb5-8802-f012980ee02c
   MODULE_TYPE    = UEFI_APPLICATION
-  VERSION_STRING = 0.1
+  VERSION_STRING = 0.2
   ENTRY_POINT    = SysProbeMain
 
 [Sources]
   SysProbe.c
   Cpuid.c
+
+[Sources.X64]
+  asm/Rdtsc.nasm
 
 [Packages]
   MdePkg/MdePkg.dec
