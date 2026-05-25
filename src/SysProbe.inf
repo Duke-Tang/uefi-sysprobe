@@ -1,0 +1,30 @@
+[Defines]
+  INF_VERSION    = 0x00010005
+  BASE_NAME      = SysProbe
+  FILE_GUID      = 18bb6998-9bfd-4924-8c7f-098ad40a41b0
+  MODULE_TYPE    = UEFI_APPLICATION
+  VERSION_STRING = 0.1
+  ENTRY_POINT    = SysProbeMain
+
+[Sources]
+  SysProbe.c
+  Cpuid.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+
+[LibraryClasses]
+  UefiApplicationEntryPoint
+  UefiLib
+  UefiBootServicesTableLib
+  UefiRuntimeServicesTableLib
+  PrintLib
+  BaseLib
+  BaseMemoryLib
+  DebugLib
+
+[Guids]
+  gEfiSmbiosTableGuid
+  gEfiSmbios3TableGuid
+  gEfiGlobalVariableGuid

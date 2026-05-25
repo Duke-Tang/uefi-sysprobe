@@ -1,0 +1,63 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout uefi-sysprobe
+        uses: actions/checkout@v4
+        with:
+          path: uefi-sysprobe
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential uuid-dev iasl nasm \
+                                  acpica-tools python3-distutils git
+
+      - name: Checkout EDK2
+        uses: actions/checkout@v4
+        with:
+          repository: tianocore/edk2
+          path: edk2
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Build EDK2 BaseTools
+        working-directory: edk2
+        run: make -C BaseTools
+
+      - name: Wire SysProbe into MdeModulePkg
+        run: |
+          ln -s "$GITHUB_WORKSPACE/uefi-sysprobe/src" \
+                "$GITHUB_WORKSPACE/edk2/MdeModulePkg/Application/SysProbe"
+          sed -i '/^\[Components\]/a\  MdeModulePkg/Application/SysProbe/SysProbe.inf' \
+                edk2/MdeModulePkg/MdeModulePkg.dsc
+
+      - name: Build SysProbe.efi
+        working-directory: edk2
+        run: |
+          source edksetup.sh
+          build -a X64 -t GCC \
+                -p MdeModulePkg/MdeModulePkg.dsc \
+                -m MdeModulePkg/Application/SysProbe/SysProbe.inf
+
+      - name: Verify artifact exists
+        run: |
+          ls -l edk2/Build/MdeModule/DEBUG_GCC/X64/SysProbe.efi
+          file edk2/Build/MdeModule/DEBUG_GCC/X64/SysProbe.efi
+
+      - name: Upload SysProbe.efi
+        uses: actions/upload-artifact@v4
+        with:
+          name: SysProbe-X64
+          path: edk2/Build/MdeModule/DEBUG_GCC/X64/SysProbe.efi
+          if-no-files-found: error
